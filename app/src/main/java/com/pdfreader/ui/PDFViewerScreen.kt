@@ -51,8 +51,13 @@ fun PDFViewerScreen(pdfUri: Uri?) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (renderer != null && pageCount > 0) {
-            val bitmap = remember(pageIndex, renderer) {
-                val page = renderer.openPage(pageIndex)
+            // FIX STARTS HERE: Create a local, immutable copy
+            val currentRenderer = renderer!! // We can use !! here because we just checked it's not null
+                                            // Or use `requireNotNull` for a more explicit check and error
+                                            // val currentRenderer = requireNotNull(renderer) { "Renderer should not be null here" }
+
+            val bitmap = remember(pageIndex, currentRenderer) { // Use currentRenderer here
+                val page = currentRenderer.openPage(pageIndex) // Use currentRenderer
                 val bmp = android.graphics.Bitmap.createBitmap(
                     page.width, page.height, android.graphics.Bitmap.Config.ARGB_8888
                 )
