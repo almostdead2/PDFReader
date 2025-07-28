@@ -22,59 +22,24 @@ jobs:
       with:
         python-version: '3.9'
 
+    # --- NEW STEP: Use the dedicated Android SDK Setup Action ---
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3 # Use the official action
+      with:
+        api-level: 30 # Match your buildozer.spec's android.api
+        build-tools: 30.0.3 # Explicitly install a common working build-tools version
+        # You can add other components like platform-tools if needed:
+        # components: 'platform-tools' 
+        # auto-license-accept: true is often default or handled by api-level/build-tools
+
     - name: Install Buildozer and Kivy dependencies
       run: |
         python -m pip install --upgrade pip
         pip install buildozer Cython "kivy[base]" "pymupdf" "pyjnius"
 
-    - name: Install Android Build Tools
-      run: |
-        SDK_ROOT="${HOME}/.buildozer/android/platform/android-sdk"
-        CMD_TOOLS_DIR="${SDK_ROOT}/cmdline-tools"
-        LATEST_CMD_TOOLS_DIR="${CMD_TOOLS_DIR}/latest"
-        BIN_DIR="${LATEST_CMD_TOOLS_DIR}/bin"
-
-        mkdir -p "${BIN_DIR}"
-
-        # Use a more generic, "always latest" URL for command-line tools
-        # The URL structure is key. This one often redirects to the actual latest build.
-        CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-current.zip"
-        
-        echo "Downloading Android command-line tools from: ${CMDLINE_TOOLS_URL}..."
-        wget -q "${CMDLINE_TOOLS_URL}" -O /tmp/cmdline-tools.zip
-        
-        echo "Extracting command-line tools..."
-        # Unzip directly into a temp folder, then move.
-        # This handles cases where the zip contains a 'cmdline-tools' folder itself.
-        UNZIP_DIR="/tmp/cmdline-tools-unzipped"
-        mkdir -p "${UNZIP_DIR}"
-        unzip -q /tmp/cmdline-tools.zip -d "${UNZIP_DIR}"
-        rm /tmp/cmdline-tools.zip
-
-        # Find the actual directory containing sdkmanager after unzipping
-        # It's usually directly inside, or inside another 'cmdline-tools' folder
-        EXTRACTED_CMDLINE_DIR=$(find "${UNZIP_DIR}" -maxdepth 2 -type d -name "cmdline-tools")
-        if [ -z "$EXTRACTED_CMDLINE_DIR" ]; then
-            echo "Error: Could not find 'cmdline-tools' directory after unzipping. Trying direct copy."
-            # Fallback for older zips or different structures: assume content is directly in unzip dir
-            mv "${UNZIP_DIR}/"* "${LATEST_CMD_TOOLS_DIR}/"
-        else
-            mv "${EXTRACTED_CMDLINE_DIR}/"* "${LATEST_CMD_TOOLS_DIR}/"
-        fi
-        
-        # Make sure sdkmanager is executable
-        chmod +x "${BIN_DIR}/sdkmanager"
-
-        # List licenses and accept them (crucial for some tools like aidl)
-        echo "Accepting Android SDK licenses..."
-        yes | "${BIN_DIR}/sdkmanager" --sdk_root="${SDK_ROOT}" --licenses
-
-        # Install build-tools for API 30
-        echo "Installing Android build-tools;30.0.3..."
-        "${BIN_DIR}/sdkmanager" --sdk_root="${SDK_ROOT}" "build-tools;30.0.3"
-
     - name: Build Android Debug APK
       run: |
+        # Buildozer will now find the SDK tools set up by the 'setup-android' action
         buildozer android debug
 
     - name: Upload APK artifact
