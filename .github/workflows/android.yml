@@ -22,6 +22,15 @@ jobs:
     - name: Build APK
       run: ./gradlew assembleRelease
 
+    - name: List Release APK Directory Contents
+      run: |
+        echo "Listing contents of app/build/outputs/apk/release/:"
+        ls -R app/build/outputs/apk/release/ || true # Use || true to prevent failure if directory is empty
+        echo "Listing contents of app/build/outputs/apk/:"
+        ls -R app/build/outputs/apk/ || true
+        echo "Listing contents of app/build/outputs/:"
+        ls -R app/build/outputs/ || true
+
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
