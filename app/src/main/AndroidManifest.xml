@@ -4,7 +4,7 @@
     <application
         android:label="PDFReader"
         android:icon="@mipmap/ic_launcher"
-        android:theme="@style/AppTheme">
+        android:theme="@style/Theme.Material3">
         <activity android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
