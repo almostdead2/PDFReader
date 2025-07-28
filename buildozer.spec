@@ -34,7 +34,7 @@ android.targetapi = 30
 
 # (str) Android NDK version to use
 # Make sure this is compatible with your android.api
-android.ndk = 21b
+android.ndk = 25b
 
 # (bool) If True, then automatically accept SDK license agreements.
 # This is intended for automation only.
