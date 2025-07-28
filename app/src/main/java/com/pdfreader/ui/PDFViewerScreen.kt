@@ -1,5 +1,6 @@
 package com.pdfreader.ui
 
+import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -13,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException // Import IOException for better error handling
 
 @Composable
 fun PDFViewerScreen(pdfUri: Uri?) {
@@ -26,45 +28,83 @@ fun PDFViewerScreen(pdfUri: Uri?) {
         }
     }
 
-    // Open PdfRenderer and manage its lifecycle
-    var renderer by remember { mutableStateOf<PdfRenderer?>(null) }
-    LaunchedEffect(pdfFile) {
-        renderer?.close() // close previous renderer if any
-        renderer = pdfFile?.let {
+    // --- CRASH FIX & RENDERER LIFECYCLE MANAGEMENT ---
+    // Use a single DisposableEffect to manage PdfRenderer lifecycle
+    val pdfRendererState = remember { mutableStateOf<PdfRenderer?>(null) }
+    val fileDescriptorState = remember { mutableStateOf<ParcelFileDescriptor?>(null) }
+
+    DisposableEffect(pdfFile) {
+        var newRenderer: PdfRenderer? = null
+        var newFileDescriptor: ParcelFileDescriptor? = null
+
+        if (pdfFile != null) {
             try {
-                ParcelFileDescriptor.open(it, ParcelFileDescriptor.MODE_READ_ONLY)?.let { pfd ->
-                    PdfRenderer(pfd)
-                }
+                // Open ParcelFileDescriptor
+                newFileDescriptor = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
+                // Create PdfRenderer
+                newRenderer = PdfRenderer(newFileDescriptor)
+                
+                // Update state variables
+                pdfRendererState.value = newRenderer
+                fileDescriptorState.value = newFileDescriptor
+
             } catch (e: Exception) {
-                null
+                // Handle error opening PDF
+                e.printStackTrace()
+                pdfRendererState.value = null
+                fileDescriptorState.value = null
             }
+        } else {
+            // If pdfFile is null, ensure renderer and descriptor are also null
+            pdfRendererState.value = null
+            fileDescriptorState.value = null
         }
-    }
-    DisposableEffect(renderer) {
+
+        // Cleanup block for DisposableEffect
         onDispose {
-            renderer?.close()
+            // Close resources safely and ensure they are nulled out
+            pdfRendererState.value?.close()
+            fileDescriptorState.value?.close()
+            pdfRendererState.value = null
+            fileDescriptorState.value = null
         }
     }
 
-    var pageIndex by remember { mutableStateOf(0) }
+    val renderer = pdfRendererState.value // Use the value from the state
     val pageCount = renderer?.pageCount ?: 0
+    var pageIndex by remember { mutableStateOf(0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (renderer != null && pageCount > 0) {
-            // FIX STARTS HERE: Create a local, immutable copy
-            val currentRenderer = renderer!! // We can use !! here because we just checked it's not null
-                                            // Or use `requireNotNull` for a more explicit check and error
-                                            // val currentRenderer = requireNotNull(renderer) { "Renderer should not be null here" }
+            // Ensure pageIndex is always valid
+            LaunchedEffect(pageCount) {
+                if (pageIndex >= pageCount) {
+                    pageIndex = pageCount - 1
+                }
+            }
 
-            val bitmap = remember(pageIndex, currentRenderer) { // Use currentRenderer here
-                val page = currentRenderer.openPage(pageIndex) // Use currentRenderer
-                val bmp = android.graphics.Bitmap.createBitmap(
-                    page.width, page.height, android.graphics.Bitmap.Config.ARGB_8888
+            // --- QUALITY IMPROVEMENT ---
+            // Render the current page to a Bitmap at a higher resolution
+            val bitmap = remember(pageIndex, renderer) {
+                // We use `renderer` directly here which is non-null due to the outer if-check
+                val page = renderer.openPage(pageIndex)
+
+                // Define a scaling factor for better quality
+                val scaleFactor = 3f // You can adjust this: 2f for good, 3f for very good, 4f for excellent
+
+                val bitmapWidth = (page.width * scaleFactor).toInt()
+                val bitmapHeight = (page.height * scaleFactor).toInt()
+
+                val bmp = Bitmap.createBitmap(
+                    bitmapWidth,
+                    bitmapHeight,
+                    Bitmap.Config.ARGB_8888
                 )
                 page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                page.close()
+                page.close() // Close the page after rendering!
                 bmp
             }
+
             Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = "PDF Page",
@@ -72,8 +112,11 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                     .fillMaxWidth()
                     .weight(1f)
             )
+
             Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Button(
@@ -92,6 +135,7 @@ fun PDFViewerScreen(pdfUri: Uri?) {
     }
 }
 
+// Your existing utility functions remain the same
 fun getPdfFileFromAssets(context: android.content.Context, assetName: String): File? {
     val file = File(context.cacheDir, assetName)
     if (!file.exists()) {
@@ -102,6 +146,7 @@ fun getPdfFileFromAssets(context: android.content.Context, assetName: String): F
                 }
             }
         } catch (e: Exception) {
+            e.printStackTrace() // Log the exception for debugging
             return null
         }
     }
@@ -118,6 +163,7 @@ fun getPdfFileFromUri(context: android.content.Context, uri: Uri): File? {
         }
         file
     } catch (e: Exception) {
-        null
+        e.printStackTrace() // Log the exception for debugging
+        return null
     }
 }
