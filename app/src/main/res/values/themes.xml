@@ -1,5 +1,0 @@
-<resources>
-    <style name="AppTheme" parent="Theme.Material3.DayNight">
-        <!-- The system will use this for light mode -->
-    </style>
-</resources>
