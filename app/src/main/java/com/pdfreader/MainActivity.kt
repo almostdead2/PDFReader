@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import com.pdfreader.ui.PDFViewerScreen
 
 class MainActivity : ComponentActivity() {
@@ -21,7 +23,14 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            PDFViewerScreen(context = this, pdfUri = pdfUri)
+            MaterialTheme {
+                Surface(
+                    modifier = androidx.compose.ui.Modifier,
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    PDFViewerScreen(pdfUri = pdfUri)
+                }
+            }
         }
     }
 }
