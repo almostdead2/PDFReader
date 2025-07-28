@@ -1,0 +1,93 @@
+name: Build PDFReader App
+
+on:
+  push:
+    branches:
+      - main # Or your main development branch
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+    inputs:
+      reason:
+        description: 'Reason for running the workflow manually'
+        required: false
+        default: 'Manual trigger from GitHub UI'
+
+jobs:
+  build_linux: # Job to build for Linux
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9' # Using Python 3.9 for broad compatibility
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Install PyQt5 and PyMuPDF (fitz)
+        pip install pyinstaller PyQt5 PyMuPDF
+
+    - name: Create Linux executable
+      run: |
+        # Use the correct script name: PDFReader.py
+        pyinstaller --onefile --windowed --name "PDFReader" PDFReader.py
+
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: PDFReader-Linux
+        path: dist/PDFReader # The path where PyInstaller puts the executable
+
+  build_windows: # Job to build for Windows
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller PyQt5 PyMuPDF
+
+    - name: Create Windows executable
+      run: |
+        # Use the correct script name: PDFReader.py
+        pyinstaller --onefile --windowed --name "PDFReader" PDFReader.py
+
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: PDFReader-Windows
+        path: dist/PDFReader.exe # PyInstaller adds .exe on Windows
+
+  # You can add a build_macos job here similarly if you need macOS builds
+  # build_macos:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.9'
+  #     - name: Install dependencies
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install pyinstaller PyQt5 PyMuPDF
+  #     - name: Create macOS executable
+  #       run: |
+  #         pyinstaller --onefile --windowed --name "PDFReader" PDFReader.py
+  #     - name: Upload macOS artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: PDFReader-macOS
+  #         path: dist/PDFReader # For macOS, it might be an executable or a .app bundle in 'dist
