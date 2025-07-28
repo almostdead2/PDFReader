@@ -1,7 +1,8 @@
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QVBoxLayout,
-    QWidget, QLabel, QFileDialog, QScrollArea, QHBoxLayout
+    QWidget, QLabel, QFileDialog, QScrollArea, QHBoxLayout,
+    QMessageBox # Added for better error messages
 )
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt, QSize
@@ -12,11 +13,12 @@ class PDFReader(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PDFReader")
-        self.setGeometry(100, 100, 800, 600) # x, y, width, height
+        # Set a reasonable initial size for the window
+        self.setGeometry(100, 100, 1000, 700) # x, y, width, height - increased width/height for better viewing
 
         self.current_pdf_document = None
         self.current_page_number = 0
-        self.zoom_factor = 1.5 # Default zoom for rendering (larger for better quality)
+        self.zoom_factor = 2.0 # Increased zoom for even better quality on various displays
 
         self.init_ui()
 
@@ -44,7 +46,8 @@ class PDFReader(QMainWindow):
         self.scroll_area.setWidget(self.image_label)
         
         # Set a minimum size for the scroll area to ensure it's visible
-        self.scroll_area.setMinimumSize(400, 400) 
+        # This minimum size should generally be larger than a small thumbnail
+        self.scroll_area.setMinimumSize(600, 500) # Adjusted minimum size
         main_layout.addWidget(self.scroll_area)
 
         # Navigation Bar: Previous, Page Number, Next
@@ -77,13 +80,27 @@ class PDFReader(QMainWindow):
         if file_path:
             try:
                 self.current_pdf_document = fitz.open(file_path)
-                self.current_page_number = 0 # Reset to first page
-                self.display_page(self.current_page_number)
+                # Check if the document actually has pages
+                if len(self.current_pdf_document) == 0:
+                    QMessageBox.warning(self, "PDF Error", "The selected PDF document contains no pages.")
+                    self.current_pdf_document = None
+                    self.image_label.clear()
+                else:
+                    self.current_page_number = 0 # Reset to first page
+                    self.display_page(self.current_page_number)
+                
+                self.update_page_label()
+                self.update_navigation_buttons()
+
+            except fitz.FileDataError as e: # Specific error for invalid PDF structure
+                QMessageBox.critical(self, "PDF Error", f"Cannot open PDF: Invalid file format or corrupted. Details: {e}")
+                self.current_pdf_document = None
+                self.image_label.clear()
                 self.update_page_label()
                 self.update_navigation_buttons()
             except Exception as e:
-                # Basic error handling: print to console, could show a QMessageBox
-                print(f"Error opening or reading PDF: {e}")
+                # General error for other issues
+                QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
                 self.current_pdf_document = None
                 self.image_label.clear()
                 self.update_page_label()
@@ -98,7 +115,8 @@ class PDFReader(QMainWindow):
             pix = page.get_pixmap(matrix=mat, alpha=False) # alpha=False for smaller size if no transparency needed
 
             # Convert pixmap to QImage
-            # PyMuPDF's pix.samples is bytes, pix.stride is bytes per row
+            # PyMuPDF's pix.samples is bytes, pix.width, pix.height, pix.stride are dimensions
+            # QImage.Format_RGBX8888 is suitable for pixmaps with 4 bytes per pixel (RGBX)
             img = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format_RGBX8888)
             
             # Convert QImage to QPixmap and set to label
@@ -142,4 +160,4 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     reader = PDFReader()
     reader.show()
-    sys.exit(app.exec_()
+    sys.exit(app.exec_()) # CORRECTED LINE
