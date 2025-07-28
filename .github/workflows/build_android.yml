@@ -22,15 +22,18 @@ jobs:
       with:
         python-version: '3.9'
 
-    # --- NEW STEP: Use the dedicated Android SDK Setup Action ---
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3 # Use the official action
+    # --- Use the dedicated Android SDK Setup Action with precise versions ---
+    - name: Set up Android SDK and accept licenses
+      uses: android-actions/setup-android@v3
       with:
-        api-level: 30 # Match your buildozer.spec's android.api
-        build-tools: 30.0.3 # Explicitly install a common working build-tools version
-        # You can add other components like platform-tools if needed:
-        # components: 'platform-tools' 
-        # auto-license-accept: true is often default or handled by api-level/build-tools
+        # Match your buildozer.spec's android.api
+        api-level: 30
+        # Explicitly install build-tools 30.0.3, which is stable for API 30
+        build-tools: 30.0.3
+        # Ensure platform-tools are installed (adb, etc.)
+        components: 'platform-tools'
+        # The 'setup-android' action generally handles license acceptance automatically
+        # when you specify api-level and build-tools. No separate --licenses step needed.
 
     - name: Install Buildozer and Kivy dependencies
       run: |
@@ -39,7 +42,9 @@ jobs:
 
     - name: Build Android Debug APK
       run: |
-        # Buildozer will now find the SDK tools set up by the 'setup-android' action
+        # Ensure Buildozer knows where the SDK is that was set up by the action
+        # The 'setup-android' action usually sets ANDROID_HOME and PATH automatically.
+        # This step just executes the Buildozer command.
         buildozer android debug
 
     - name: Upload APK artifact
