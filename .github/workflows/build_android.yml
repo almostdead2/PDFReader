@@ -18,15 +18,23 @@ jobs:
         java-version: '17'
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions:setup-python@v5
       with:
         python-version: '3.9'
 
+    # --- Use the dedicated Android SDK Setup Action for core SDK ---
     - name: Set up Android SDK (core components)
       uses: android-actions/setup-android@v3
       with:
-        api-level: 30 # Ensure platform 30 is available
-        components: 'platform-tools' # Essential tools like adb
+        api-level: 30
+        components: 'platform-tools'
+
+    # --- NEW STEP: Install Autotools dependencies ---
+    - name: Install Autotools for C/C++ dependencies
+      run: |
+        sudo apt-get update
+        # autoconf, automake, libtool are crucial for building many C/C++ libraries
+        sudo apt-get install -y autoconf automake libtool build-essential pkg-config
 
     - name: Install Buildozer and Kivy dependencies
       run: |
