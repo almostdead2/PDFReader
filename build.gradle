@@ -15,4 +15,4 @@ allprojects {
         google()
         mavenCentral()
     }
-}￼Enter
+}
