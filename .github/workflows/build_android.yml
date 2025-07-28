@@ -22,24 +22,26 @@ jobs:
       with:
         python-version: '3.9'
 
-    # --- Use the dedicated Android SDK Setup Action for core SDK ---
+    # Use the dedicated Android SDK Setup Action for core SDK
     - name: Set up Android SDK (core components)
       uses: android-actions/setup-android@v3
       with:
         api-level: 30
         components: 'platform-tools'
 
-    # --- NEW STEP: Install Autotools dependencies ---
+    # Install Autotools dependencies (keep this)
     - name: Install Autotools for C/C++ dependencies
       run: |
         sudo apt-get update
-        # autoconf, automake, libtool are crucial for building many C/C++ libraries
         sudo apt-get install -y autoconf automake libtool build-essential pkg-config
 
-    - name: Install Buildozer and Kivy dependencies
+    - name: Install Buildozer and Kivy dependencies (UPDATED for P4A master)
       run: |
         python -m pip install --upgrade pip
-        pip install buildozer Cython "kivy[base]" "pymupdf" "pyjnius"
+        # Install buildozer and then its dependencies, BUT install python-for-android from master
+        pip install "buildozer[full]" Cython "kivy[base]" "pymupdf" "pyjnius"
+        # Force install python-for-android from GitHub master to get latest fixes
+        pip install git+https://github.com/kivy/python-for-android.git@master
 
     - name: Build Android Debug APK
       run: |
