@@ -33,7 +33,6 @@ jobs:
     - name: Install Autotools for C/C++ dependencies
       run: |
         sudo apt-get update
-        # autoconf, automake, libtool are crucial for building many C/C++ libraries
         sudo apt-get install -y autoconf automake libtool build-essential pkg-config
 
     - name: Install Buildozer and Kivy dependencies
