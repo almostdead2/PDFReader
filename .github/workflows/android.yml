@@ -1,4 +1,4 @@
-name: Build PDFReader APK
+name: Test Generate Key and Sign APK (DEVELOPMENT/TESTING ONLY)
 
 on:
   workflow_dispatch:
@@ -15,15 +15,107 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '17'
+        cache: 'gradle' # Cache Gradle dependencies for faster builds
+
+    - name: Install Android SDK Build-Tools
+      # We need apksigner and zipalign, which come with build-tools
+      run: |
+        sdk_manager_path="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        echo "Installing latest build-tools..."
+        # Using a specific common version for build-tools, adjust if your project needs another
+        "$sdk_manager_path" "build-tools;34.0.0"
+        echo "Done installing build-tools."
 
     - name: Make gradlew executable
       run: chmod +x ./gradlew
 
-    - name: Build APK
+    # --- DANGER ZONE: GENERATING TEMPORARY TEST KEY AUTOMATICALLY ---
+    # !! This key is new on every run and NOT for production apps. !!
+    # !! It's for testing the 'keytool' command in GH Actions only. !!
+    - name: Generate Temporary Test Signing Key
+      id: generate_key
+      env:
+        # Load secrets for key generation
+        KS_PASS: ${{ secrets.TEST_KS_PASS }}
+        KEY_PASS: ${{ secrets.TEST_KEY_PASS }}
+        KEY_ALIAS: ${{ secrets.TEST_KEY_ALIAS }}
+        CN_NAME: ${{ secrets.TEST_CN_NAME }}
+        O_ORG: ${{ secrets.TEST_O_ORG }}
+        C_COUNTRY: ${{ secrets.TEST_C_COUNTRY }}
+      run: |
+        KEYSTORE_FILE="test_temp_key.jks"
+        KEY_VALIDITY=10 # Valid for 10 days for testing purposes
+
+        # Construct interactive input for keytool
+        # WARNING: This method of passing secrets to a command can expose them briefly in process lists.
+        # It is NOT safe for production keys.
+        INTERACTIVE_INPUT="${KS_PASS}\n${KS_PASS}\n" # Keystore password twice
+        INTERACTIVE_INPUT+="${CN_NAME}\n\n${O_ORG}\n\n${C_COUNTRY}\nyes\n" # Certificate details (empty for OU, City, State)
+        INTERACTIVE_INPUT+="${KEY_PASS}\n${KEY_PASS}\n" # Key password twice
+
+        echo "Generating temporary JKS file: $KEYSTORE_FILE"
+        echo -e "$INTERACTIVE_INPUT" | keytool -genkey -v \
+          -keystore "$KEYSTORE_FILE" \
+          -alias "${KEY_ALIAS}" \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity "$KEY_VALIDITY"
+
+        echo "Temporary JKS file generated."
+        ls -l "$KEYSTORE_FILE" # Verify creation
+
+    - name: Build Unsigned APK
       run: ./gradlew assembleRelease
 
-    - name: Upload APK Artifact
+    # --- Signing the APK with the temporary key ---
+    - name: Get Build Tools Path
+      id: get_build_tools
+      run: |
+        # Find the latest build-tools version
+        ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}" # Fallback if ANDROID_HOME not set
+        BUILD_TOOLS_DIR=$(find "${ANDROID_HOME}/build-tools/" -maxdepth 1 -type d -name "*-rc" -prune -o -name "*" | sort -V | tail -n 1)
+        echo "Selected Android Build Tools: $BUILD_TOOLS_DIR"
+        echo "build_tools_path=$BUILD_TOOLS_DIR" >> "$GITHUB_OUTPUT"
+
+    - name: Sign APK with Temporary Test Key
+      env:
+        # Load passwords as environment variables for apksigner.
+        # This is the safest way to pass them to apksigner.
+        APK_SIGN_KS_PASS: ${{ secrets.TEST_KS_PASS }}
+        APK_SIGN_KEY_PASS: ${{ secrets.TEST_KEY_PASS }}
+      run: |
+        KEYSTORE_FILE="test_temp_key.jks" # The key generated in the previous step
+        UNSIGNED_APK_PATH="app/build/outputs/apk/release/app-release-unsigned.apk"
+        SIGNED_APK_PATH="app/build/outputs/apk/release/app-release-signed-test.apk" # Output to a distinct file name
+
+        ZIPALIGN="${{ steps.get_build_tools.outputs.build_tools_path }}/zipalign"
+        APKSIGNER="${{ steps.get_build_tools.outputs.build_tools_path }}/apksigner"
+
+        if [ ! -f "$UNSIGNED_APK_PATH" ]; then
+          echo "Error: Unsigned APK not found at $UNSIGNED_APK_PATH"
+          exit 1
+        fi
+
+        echo "Aligning APK with zipalign..."
+        "$ZIPALIGN" -v 4 "$UNSIGNED_APK_PATH" "${UNSIGNED_APK_PATH}.aligned"
+
+        echo "Signing aligned APK with apksigner..."
+        "$APKSIGNER" sign --ks "$KEYSTORE_FILE" \
+                           --ks-key-alias "${{ secrets.TEST_KEY_ALIAS }}" \
+                           --ks-pass env:APK_SIGN_KS_PASS \
+                           --key-pass env:APK_SIGN_KEY_PASS \
+                           --out "$SIGNED_APK_PATH" \
+                           "${UNSIGNED_APK_PATH}.aligned"
+
+        echo "Signed APK created: $SIGNED_APK_PATH"
+        # Verify the signature (important for checking success)
+        echo "Verifying signature..."
+        "$APKSIGNER" verify "$SIGNED_APK_PATH" || { echo "Signature verification FAILED!"; exit 1; }
+        echo "Signature verification SUCCESS!"
+
+
+    - name: Upload Signed APK Artifact (Test)
       uses: actions/upload-artifact@v4
       with:
-        name: PDFReader-apk
-        path: app/build/outputs/apk/release/app-release-unsigned.apk
+        name: PDFReader-signed-test-apk
+        path: app/build/outputs/apk/release/app-release-signed-test.apk
