@@ -35,31 +35,39 @@ jobs:
     - name: Generate Temporary Test Signing Key
       id: generate_key
       env:
-        # Load secrets for key generation
         KS_PASS: ${{ secrets.TEST_KS_PASS }}
         KEY_PASS: ${{ secrets.TEST_KEY_PASS }}
         KEY_ALIAS: ${{ secrets.TEST_KEY_ALIAS }}
         CN_NAME: ${{ secrets.TEST_CN_NAME }}
         O_ORG: ${{ secrets.TEST_O_ORG }}
-        C_COUNTRY: ${{ secrets.TEST_C_COUNTRY }}
+        C_COUNTRY: ${{ secrets.TEST_C_COUNTRY }} # This MUST be "IN" (or your correct country code) in your secrets
       run: |
         KEYSTORE_FILE="test_temp_key.jks"
         KEY_VALIDITY=10 # Valid for 10 days for testing purposes
 
-        # Construct interactive input for keytool
-        # WARNING: This method of passing secrets to a command can expose them briefly in process lists.
-        # It is NOT safe for production keys.
-        INTERACTIVE_INPUT="${KS_PASS}\n${KS_PASS}\n" # Keystore password twice
-        INTERACTIVE_INPUT+="${CN_NAME}\n\n${O_ORG}\n\n${C_COUNTRY}\nyes\n" # Certificate details (empty for OU, City, State)
-        INTERACTIVE_INPUT+="${KEY_PASS}\n${KEY_PASS}\n" # Key password twice
-
         echo "Generating temporary JKS file: $KEYSTORE_FILE"
-        echo -e "$INTERACTIVE_INPUT" | keytool -genkey -v \
+
+        # Using a "here-document" (<< EOF) to feed precise, line-by-line input to keytool.
+        # Each line between '<< EOF' and 'EOF' is sent as a distinct input line to keytool.
+        # An empty line corresponds to hitting Enter for an optional prompt (like OU, City, State).
+        keytool -genkey -v \
           -keystore "$KEYSTORE_FILE" \
           -alias "${KEY_ALIAS}" \
           -keyalg RSA \
           -keysize 2048 \
-          -validity "$KEY_VALIDITY"
+          -validity "$KEY_VALIDITY" << EOF
+        ${KS_PASS}
+        ${KS_PASS}
+        ${CN_NAME}
+        
+        ${O_ORG}
+        
+        
+        ${C_COUNTRY}
+        yes
+        ${KEY_PASS}
+        ${KEY_PASS}
+        EOF
 
         echo "Temporary JKS file generated."
         ls -l "$KEYSTORE_FILE" # Verify creation
