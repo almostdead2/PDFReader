@@ -36,6 +36,12 @@ android.targetapi = 30
 # Make sure this is compatible with your android.api
 android.ndk = 26c
 
+# (int) Android NDK API level to use for cross-compiling native code.
+# THIS IS THE CRITICAL LINE TO ADD/CHANGE
+# It forces P4A to use NDK API 21 for native builds (like libffi),
+# aligning with what the failing command showed.
+android.ndk_api = 21 
+
 # (bool) If True, then automatically accept SDK license agreements.
 # This is intended for automation only.
 android.accept_sdk_license = True 
