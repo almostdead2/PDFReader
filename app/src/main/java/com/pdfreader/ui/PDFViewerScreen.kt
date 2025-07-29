@@ -110,7 +110,7 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                 val page = renderer.openPage(pageIndex)
 
                 // Define a scaling factor for better quality
-                val scaleFactor = 3f // You can adjust this: 2f for good, 3f for very good, 4f for excellent
+                val scaleFactor = 4f // You can adjust this: 2f for good, 3f for very good, 4f for excellent
 
                 val bitmapWidth = (page.width * scaleFactor).toInt()
                 val bitmapHeight = (page.height * scaleFactor).toInt()
