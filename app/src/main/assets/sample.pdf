@@ -6,15 +6,15 @@ endobj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 180] /Contents 4 0 R >> % Page size: 400x180 units
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 180] /Contents 4 0 R >>
 endobj
 4 0 obj
 << /Length 49 >>
 stream
 BT
-/F1 18 Tf               % <--- Font size set to 18
-92 81 Td                % <--- Text position (X=92, Y=81) for optimal 18pt centering
-(Welcome to PDFReader.) Tj  % <--- Your message with a dot
+/F1 18 Tf
+97 81 Td                % <--- X-coordinate increased from 92 to 97 to move text right
+(Welcome to PDFReader.) Tj
 ET
 endstream
 endobj
