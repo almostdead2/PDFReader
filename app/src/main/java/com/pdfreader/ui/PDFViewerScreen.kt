@@ -16,6 +16,15 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException // Import IOException for better error handling
 
+// START: ADDED FOR ZOOM FEATURE IMPORTS
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+// END: ADDED FOR ZOOM FEATURE IMPORTS
+
 @Composable
 fun PDFViewerScreen(pdfUri: Uri?) {
     val context = LocalContext.current
@@ -74,6 +83,17 @@ fun PDFViewerScreen(pdfUri: Uri?) {
     val pageCount = renderer?.pageCount ?: 0
     var pageIndex by remember { mutableStateOf(0) }
 
+    // START: ADDED FOR ZOOM FEATURE STATE
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    val state = rememberTransformableState { zoomChange, panChange, rotationChange ->
+        scale = (scale * zoomChange).coerceIn(0.5f, 5f) // Limit zoom from 0.5x to 5x
+        offset += panChange
+        // rotationChange is ignored for PDF viewing
+    }
+    // END: ADDED FOR ZOOM FEATURE STATE
+
     Column(modifier = Modifier.fillMaxSize()) {
         if (renderer != null && pageCount > 0) {
             // Ensure pageIndex is always valid
@@ -111,6 +131,23 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    // START: ADDED FOR ZOOM FEATURE MODIFIERS
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offset.x,
+                        translationY = offset.y
+                    )
+                    .transformable(state = state)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                scale = if (scale == 1f) 2f else 1f
+                                offset = Offset.Zero
+                            }
+                        )
+                    }
+                    // END: ADDED FOR ZOOM FEATURE MODIFIERS
             )
 
             Row(
@@ -120,12 +157,24 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Button(
-                    onClick = { pageIndex = (pageIndex - 1).coerceAtLeast(0) },
+                    onClick = { 
+                        pageIndex = (pageIndex - 1).coerceAtLeast(0) 
+                        // START: ADDED FOR ZOOM FEATURE RESET ON PAGE CHANGE
+                        scale = 1f 
+                        offset = Offset.Zero
+                        // END: ADDED FOR ZOOM FEATURE RESET ON PAGE CHANGE
+                    },
                     enabled = pageIndex > 0
                 ) { Text("Previous") }
                 Text(text = "Page ${pageIndex + 1} / $pageCount")
                 Button(
-                    onClick = { pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) },
+                    onClick = { 
+                        pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) 
+                        // START: ADDED FOR ZOOM FEATURE RESET ON PAGE CHANGE
+                        scale = 1f
+                        offset = Offset.Zero
+                        // END: ADDED FOR ZOOM FEATURE RESET ON PAGE CHANGE
+                    },
                     enabled = pageIndex < pageCount - 1
                 ) { Text("Next") }
             }
