@@ -6,15 +6,15 @@ endobj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 180] /Contents 4 0 R >> 
 endobj
 4 0 obj
-<< /Length 49 >>         % Length remains 49 as byte count of stream didn't change
+<< /Length 49 >>         
 stream
 BT
-/F1 18 Tf               % <--- Font size changed from 24 to 18
-72 72 Td
-(Welcome to PDFReader.) Tj  % <--- Exclamation mark changed to dot
+/F1 18 Tf               % <--- Font size set to 18
+87 81 Td                % <--- Text position adjusted for 18pt font centering
+(Welcome to PDFReader.) Tj  
 ET
 endstream
 endobj
