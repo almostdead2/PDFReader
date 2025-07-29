@@ -89,7 +89,8 @@ fun PDFViewerScreen(pdfUri: Uri?) {
 
     val state = rememberTransformableState { zoomChange, panChange, rotationChange ->
         scale = (scale * zoomChange).coerceIn(0.5f, 5f) // Limit zoom from 0.5x to 5x
-        offset += panChange
+        // ONLY CHANGE IS HERE: panChange is now divided by scale for faster movement
+        offset += panChange / scale 
         // rotationChange is ignored for PDF viewing
     }
     // END: ADDED FOR ZOOM FEATURE STATE
