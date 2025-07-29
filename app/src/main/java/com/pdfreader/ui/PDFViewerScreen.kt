@@ -17,11 +17,13 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
-// --- IMPORTS FOR ZOOM FEATURE ---
+// --- IMPORTS FOR ZOOM/PAN AND DOUBLE TAP ---
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectTapGestures // <--- NEW IMPORT
+import androidx.compose.ui.input.pointer.pointerInput // <--- NEW IMPORT
 // --- END IMPORTS ---
 
 @Composable
@@ -72,16 +74,14 @@ fun PDFViewerScreen(pdfUri: Uri?) {
     val pageCount = renderer?.pageCount ?: 0
     var pageIndex by remember { mutableStateOf(0) }
 
-    // --- STATE FOR ZOOM AND PAN ---
-    var scale by remember { mutableFloatStateOf(1f) } // Current zoom level
-    var offset by remember { mutableStateOf(Offset.Zero) } // Current pan offset
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
 
     val state = rememberTransformableState { zoomChange, panChange, rotationChange ->
         scale = (scale * zoomChange).coerceIn(0.5f, 5f) // Limit zoom from 0.5x to 5x
         offset += panChange
         // rotationChange is ignored for PDF viewing
     }
-    // --- END STATE FOR ZOOM AND PAN ---
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -122,7 +122,17 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                         translationX = offset.x,
                         translationY = offset.y
                     )
-                    .transformable(state = state) // Attach transformable modifier for gestures
+                    .transformable(state = state) // Attach transformable modifier for pinch/pan gestures
+                    .pointerInput(Unit) { // <--- ADDED FOR DOUBLE TAP ZOOM
+                        detectTapGestures(
+                            onDoubleTap = { tapOffset -> // 'tapOffset' is the position of the double tap
+                                scale = if (scale == 1f) 2f else 1f // Toggle between 1x and 2x zoom
+                                offset = Offset.Zero // Reset pan to center
+                                // For more advanced double tap zoom, you could calculate a pan offset
+                                // to center the exact point that was double-tapped.
+                            }
+                        )
+                    }
             )
 
             // Navigation controls
