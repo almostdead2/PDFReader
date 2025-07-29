@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment // Added for column alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -29,11 +30,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 fun PDFViewerScreen(pdfUri: Uri?) {
     val context = LocalContext.current
 
-    // Load PDF file from Uri or assets
+    // Load PDF file from Uri or handle direct app launch (no PDF)
     val pdfFile = remember(pdfUri) {
         when {
             pdfUri != null -> getPdfFileFromUri(context, pdfUri)
-            else -> getPdfFileFromAssets(context, "sample.pdf")
+            // START: FIX FOR WELCOME SCREEN NOT ZOOMING
+            // If no URI, explicitly set pdfFile to null.
+            // This ensures the 'else' block (with Compose's "Welcome" message) is used
+            // when the app is launched directly without a specific PDF.
+            else -> null
+            // END: FIX FOR WELCOME SCREEN NOT ZOOMING
         }
     }
 
@@ -87,14 +93,26 @@ fun PDFViewerScreen(pdfUri: Uri?) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
+    // Reset zoom and pan when the PDF file or page changes
+    LaunchedEffect(pdfFile, pageIndex) { // <--- ADDED: Reset on page/file change
+        scale = 1f
+        offset = Offset.Zero
+    }
+
     val state = rememberTransformableState { zoomChange, panChange, rotationChange ->
-        scale = (scale * zoomChange).coerceIn(0.5f, 5f) // Limit zoom from 0.5x to 5x
-        offset += panChange
+        scale = (scale * zoomChange).coerceIn(0.5f, 10f) // Limit zoom from 0.5x to 10x
+        // START: FIX FOR CONSISTENT PAN SPEED
+        offset += panChange / scale // Adjust pan speed by current scale
+        // END: FIX FOR CONSISTENT PAN SPEED
         // rotationChange is ignored for PDF viewing
     }
     // END: ADDED FOR ZOOM FEATURE STATE
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally, // Added for center alignment of content
+        verticalArrangement = Arrangement.Center // Added for center alignment of content
+    ) {
         if (renderer != null && pageCount > 0) {
             // Ensure pageIndex is always valid
             LaunchedEffect(pageCount) {
@@ -105,15 +123,19 @@ fun PDFViewerScreen(pdfUri: Uri?) {
 
             // --- QUALITY IMPROVEMENT ---
             // Render the current page to a Bitmap at a higher resolution
-            val bitmap = remember(pageIndex, renderer) {
+            val bitmap = remember(pageIndex, renderer, scale) { // <--- ADDED scale as key for re-render on zoom
                 // We use `renderer` directly here which is non-null due to the outer if-check
                 val page = renderer.openPage(pageIndex)
 
-                // Define a scaling factor for better quality
-                val scaleFactor = 3f // You can adjust this: 2f for good, 3f for very good, 4f for excellent
+                // Define a higher base scaling factor for better initial quality
+                val baseRenderScale = 6f // Adjusted for much better quality at zoom
 
-                val bitmapWidth = (page.width * scaleFactor).toInt()
-                val bitmapHeight = (page.height * scaleFactor).toInt()
+                // Calculate the effective scale for rendering
+                // If current display scale is high, render an even larger bitmap
+                val renderScale = if (scale > 1f) baseRenderScale * scale else baseRenderScale
+
+                val bitmapWidth = (page.width * renderScale).toInt()
+                val bitmapHeight = (page.height * renderScale).toInt()
 
                 val bmp = Bitmap.createBitmap(
                     bitmapWidth,
@@ -143,7 +165,7 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                         detectTapGestures(
                             onDoubleTap = {
                                 scale = if (scale == 1f) 2f else 1f
-                                offset = Offset.Zero
+                                offset = Offset.Zero // Reset pan on double tap
                             }
                         )
                     }
@@ -159,10 +181,7 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                 Button(
                     onClick = { 
                         pageIndex = (pageIndex - 1).coerceAtLeast(0) 
-                        // START: ADDED FOR ZOOM FEATURE RESET ON PAGE CHANGE
-                        scale = 1f 
-                        offset = Offset.Zero
-                        // END: ADDED FOR ZOOM FEATURE RESET ON PAGE CHANGE
+                        // Zoom/Pan reset is handled by LaunchedEffect(pdfFile, pageIndex) now
                     },
                     enabled = pageIndex > 0
                 ) { Text("Previous") }
@@ -170,16 +189,21 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                 Button(
                     onClick = { 
                         pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) 
-                        // START: ADDED FOR ZOOM FEATURE RESET ON PAGE CHANGE
-                        scale = 1f
-                        offset = Offset.Zero
-                        // END: ADDED FOR ZOOM FEATURE RESET ON PAGE CHANGE
+                        // Zoom/Pan reset is handled by LaunchedEffect(pdfFile, pageIndex) now
                     },
                     enabled = pageIndex < pageCount - 1
                 ) { Text("Next") }
             }
         } else {
-            Text("PDF not found or could not be opened.", modifier = Modifier.padding(16.dp))
+            // START: FIX FOR WELCOME SCREEN NOT ZOOMING
+            // Display "Welcome to PDFReader!" if no URI was provided (direct app launch)
+            // Otherwise, display "PDF not found..." for other errors.
+            Text(
+                text = if (pdfUri == null) "Welcome to PDFReader!" else "PDF not found or could not be opened.",
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.headlineMedium // Using a theme style for text
+            )
+            // END: FIX FOR WELCOME SCREEN NOT ZOOMING
         }
     }
 }
