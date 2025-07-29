@@ -8,128 +8,111 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException // Make sure this import is present for better error handling
+import java.io.IOException // Import IOException for better error handling
 
 @Composable
 fun PDFViewerScreen(pdfUri: Uri?) {
     val context = LocalContext.current
 
-    // Step 1: Determine the PDF file to load (from Uri or assets)
+    // Load PDF file from Uri or assets
     val pdfFile = remember(pdfUri) {
         when {
             pdfUri != null -> getPdfFileFromUri(context, pdfUri)
-            else -> getPdfFileFromAssets(context, "sample.pdf") // Loads a sample PDF if no URI is provided
+            else -> getPdfFileFromAssets(context, "sample.pdf")
         }
     }
 
-    // Step 2: Open PdfRenderer and manage its lifecycle (CRASH FIX)
-    // We use two mutable states to hold the renderer and its associated file descriptor.
+    // --- CRASH FIX & RENDERER LIFECYCLE MANAGEMENT ---
+    // Use a single DisposableEffect to manage PdfRenderer lifecycle
     val pdfRendererState = remember { mutableStateOf<PdfRenderer?>(null) }
     val fileDescriptorState = remember { mutableStateOf<ParcelFileDescriptor?>(null) }
 
-    // DisposableEffect ensures proper opening and closing based on 'pdfFile'
     DisposableEffect(pdfFile) {
         var newRenderer: PdfRenderer? = null
         var newFileDescriptor: ParcelFileDescriptor? = null
 
         if (pdfFile != null) {
             try {
-                // Open ParcelFileDescriptor in read-only mode
+                // Open ParcelFileDescriptor
                 newFileDescriptor = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
-                // Create PdfRenderer using the file descriptor
+                // Create PdfRenderer
                 newRenderer = PdfRenderer(newFileDescriptor)
                 
-                // Update the state variables with the new instances
+                // Update state variables
                 pdfRendererState.value = newRenderer
                 fileDescriptorState.value = newFileDescriptor
 
             } catch (e: Exception) {
-                // Log any errors that occur during PDF opening
+                // Handle error opening PDF
                 e.printStackTrace()
-                // Ensure states are nulled out on error
                 pdfRendererState.value = null
                 fileDescriptorState.value = null
             }
         } else {
-            // If pdfFile is null, ensure renderer and descriptor states are also nulled
+            // If pdfFile is null, ensure renderer and descriptor are also null
             pdfRendererState.value = null
             fileDescriptorState.value = null
         }
 
-        // This 'onDispose' block is crucial for cleanup when the composable leaves composition
-        // or 'pdfFile' changes, preventing the "Already closed" crash.
+        // Cleanup block for DisposableEffect
         onDispose {
-            // Safely close the PdfRenderer and ParcelFileDescriptor if they exist
+            // Close resources safely and ensure they are nulled out
             pdfRendererState.value?.close()
             fileDescriptorState.value?.close()
-            // Null out the states to prevent accidental re-use of closed objects
             pdfRendererState.value = null
             fileDescriptorState.value = null
         }
     }
 
-    // Access the current PdfRenderer instance from the state
-    val renderer = pdfRendererState.value
+    val renderer = pdfRendererState.value // Use the value from the state
     val pageCount = renderer?.pageCount ?: 0
-    var pageIndex by remember { mutableStateOf(0) } // State to track current page index
+    var pageIndex by remember { mutableStateOf(0) }
 
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        // Center content horizontally and vertically when no PDF is displayed
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         if (renderer != null && pageCount > 0) {
-            // Ensure pageIndex is valid if pageCount changes (e.g., a different PDF is loaded)
+            // Ensure pageIndex is always valid
             LaunchedEffect(pageCount) {
                 if (pageIndex >= pageCount) {
                     pageIndex = pageCount - 1
                 }
             }
 
-            // Step 3: Render the current page to a Bitmap (QUALITY IMPROVEMENT)
+            // --- QUALITY IMPROVEMENT ---
+            // Render the current page to a Bitmap at a higher resolution
             val bitmap = remember(pageIndex, renderer) {
-                // Open the specific page from the renderer
+                // We use `renderer` directly here which is non-null due to the outer if-check
                 val page = renderer.openPage(pageIndex)
 
-                // Define a scaling factor for better image quality.
-                // A value of 3f means the bitmap will be 3 times larger in width/height
-                // than the PDF's intrinsic page dimensions, resulting in sharper display.
-                val scaleFactor = 3f 
+                // Define a scaling factor for better quality
+                val scaleFactor = 3f // You can adjust this: 2f for good, 3f for very good, 4f for excellent
 
-                // Calculate the dimensions for the high-quality bitmap
                 val bitmapWidth = (page.width * scaleFactor).toInt()
                 val bitmapHeight = (page.height * scaleFactor).toInt()
 
-                // Create the bitmap with the calculated dimensions and ARGB_8888 config for full color
                 val bmp = Bitmap.createBitmap(
                     bitmapWidth,
                     bitmapHeight,
                     Bitmap.Config.ARGB_8888
                 )
-                // Render the PDF page onto the created bitmap
                 page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                page.close() // IMPORTANT: Close the page after rendering to release resources
-                bmp // Return the rendered bitmap
+                page.close() // Close the page after rendering!
+                bmp
             }
 
-            // Display the rendered PDF page image
             Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = "PDF Page",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // Takes up remaining vertical space
+                    .weight(1f)
             )
 
-            // Navigation controls (Previous/Next buttons and page number)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -137,27 +120,22 @@ fun PDFViewerScreen(pdfUri: Uri?) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Button(
-                    onClick = { pageIndex = (pageIndex - 1).coerceAtLeast(0) }, // Go to previous page, min 0
-                    enabled = pageIndex > 0 // Disable if on the first page
+                    onClick = { pageIndex = (pageIndex - 1).coerceAtLeast(0) },
+                    enabled = pageIndex > 0
                 ) { Text("Previous") }
-                
-                Text(text = "Page ${pageIndex + 1} / $pageCount") // Display current page number
-                
+                Text(text = "Page ${pageIndex + 1} / $pageCount")
                 Button(
-                    onClick = { pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) }, // Go to next page, max pageCount - 1
-                    enabled = pageIndex < pageCount - 1 // Disable if on the last page
+                    onClick = { pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) },
+                    enabled = pageIndex < pageCount - 1
                 ) { Text("Next") }
             }
         } else {
-            // This block is executed when renderer is null (e.g., app launched directly or PDF failed to open).
-            // The Text message has been REMOVED as per your request for a cleaner initial screen.
-            // You can add a different message or UI here if desired, e.g.:
-            // Text("Welcome! Open a PDF from your file manager.", modifier = Modifier.padding(16.dp))
+            Text("PDF not found or could not be opened.", modifier = Modifier.padding(16.dp))
         }
     }
 }
 
-// Utility function to get PDF File from assets folder
+// Your existing utility functions remain the same
 fun getPdfFileFromAssets(context: android.content.Context, assetName: String): File? {
     val file = File(context.cacheDir, assetName)
     if (!file.exists()) {
@@ -168,17 +146,16 @@ fun getPdfFileFromAssets(context: android.content.Context, assetName: String): F
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace() // Print stack trace for debugging asset loading issues
+            e.printStackTrace() // Log the exception for debugging
             return null
         }
     }
     return file
 }
 
-// Utility function to get PDF File from a content Uri (e.g., from file manager)
 fun getPdfFileFromUri(context: android.content.Context, uri: Uri): File? {
     return try {
-        val file = File(context.cacheDir, "shared.pdf") // Temporary file name for shared PDFs
+        val file = File(context.cacheDir, "shared.pdf")
         context.contentResolver.openInputStream(uri)?.use { input ->
             FileOutputStream(file).use { output ->
                 input.copyTo(output)
@@ -186,7 +163,7 @@ fun getPdfFileFromUri(context: android.content.Context, uri: Uri): File? {
         }
         file
     } catch (e: Exception) {
-        e.printStackTrace() // Print stack trace for debugging URI handling issues
+        e.printStackTrace() // Log the exception for debugging
         return null
     }
 }
